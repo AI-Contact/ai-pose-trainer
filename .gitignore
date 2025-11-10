@@ -1,0 +1,6 @@
+*.json
+*.jpg
+*.mp4
+*.npy
+*.ckpt
+__pycache__

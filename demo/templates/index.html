@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>운동 분석 데모</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .header h1 {
+        font-size: 2.5em;
+        margin-bottom: 10px;
+      }
+
+      .content {
+        display: grid;
+        grid-template-columns: 1fr 400px;
+        gap: 20px;
+        padding: 20px;
+      }
+
+      .video-section {
+        background: #f5f5f5;
+        border-radius: 15px;
+        padding: 20px;
+        text-align: center;
+      }
+
+      .video-container {
+        position: relative;
+        background: #000;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 20px;
+      }
+
+      .video-container img {
+        width: 100%;
+        height: auto;
+        max-height: 80vh;
+        object-fit: contain;
+        display: block;
+      }
+
+      .controls {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-bottom: 20px;
+      }
+
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .control-group label {
+        font-weight: bold;
+        color: #333;
+      }
+
+      select,
+      button {
+        padding: 12px 20px;
+        border: 2px solid #667eea;
+        border-radius: 8px;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      select {
+        background: white;
+        color: #333;
+      }
+
+      button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        font-weight: bold;
+      }
+
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .info-section {
+        background: #f9f9f9;
+        border-radius: 15px;
+        padding: 20px;
+      }
+
+      .info-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .info-card h3 {
+        color: #667eea;
+        margin-bottom: 15px;
+        font-size: 1.3em;
+        border-bottom: 2px solid #667eea;
+        padding-bottom: 10px;
+      }
+
+      .stat-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+      }
+
+      .stat-item:last-child {
+        border-bottom: none;
+      }
+
+      .stat-label {
+        color: #666;
+        font-weight: 500;
+      }
+
+      .stat-value {
+        color: #333;
+        font-weight: bold;
+        font-size: 1.1em;
+      }
+
+      .feedback {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+        font-size: 1.2em;
+        font-weight: bold;
+        margin-top: 10px;
+      }
+
+      .warmup {
+        background: #ffa726;
+        color: white;
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+        font-size: 1.1em;
+        margin-bottom: 15px;
+      }
+
+      .rep-scores {
+        max-height: 200px;
+        overflow-y: auto;
+      }
+
+      .rep-score-item {
+        padding: 8px;
+        background: #f0f0f0;
+        border-radius: 5px;
+        margin-bottom: 5px;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (max-width: 1024px) {
+        .content {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🏋️ 운동 분석 데모</h1>
+        <p>실시간 자세 분석 및 피드백 시스템</p>
+      </div>
+
+      <div class="content">
+        <div class="video-section">
+          <div class="video-container">
+            <img id="videoStream" src="/video_feed" alt="비디오 스트리밍" />
+          </div>
+
+          <div class="controls">
+            <div class="control-group">
+              <label for="modeSelect">모드 선택</label>
+              <select id="modeSelect" onchange="onModeChange()">
+                <option value="realtime">실시간 (웹캠)</option>
+                <option value="video">비디오 업로드</option>
+              </select>
+            </div>
+
+            <div
+              class="control-group"
+              id="videoUploadGroup"
+              style="display: none"
+            >
+              <label for="videoFile">비디오 파일</label>
+              <input
+                type="file"
+                id="videoFile"
+                accept="video/*"
+                style="
+                  padding: 8px;
+                  border: 2px solid #667eea;
+                  border-radius: 8px;
+                  font-size: 14px;
+                "
+              />
+              <div
+                id="uploadStatus"
+                style="display: none; margin-top: 10px; text-align: center"
+              >
+                <div
+                  style="
+                    display: inline-block;
+                    padding: 10px;
+                    background: #f0f0f0;
+                    border-radius: 8px;
+                  "
+                >
+                  <span
+                    style="
+                      display: inline-block;
+                      width: 16px;
+                      height: 16px;
+                      border: 3px solid #667eea;
+                      border-top-color: transparent;
+                      border-radius: 50%;
+                      animation: spin 1s linear infinite;
+                      margin-right: 8px;
+                    "
+                  ></span>
+                  <span style="color: #667eea; font-weight: bold"
+                    >업로드 중...</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="exerciseSelect">운동 선택</label>
+              <select id="exerciseSelect">
+                <option value="push_up">푸시업 (Push Up)</option>
+                <option value="plank">플랭크 (Plank)</option>
+                <option value="crunch">크런치 (Crunch)</option>
+                <option value="cross_lunge">크로스 런지 (Cross Lunge)</option>
+              </select>
+            </div>
+
+            <div class="control-group">
+              <label>&nbsp;</label>
+              <button id="startBtn" onclick="startExercise()">시작</button>
+            </div>
+
+            <div class="control-group">
+              <label>&nbsp;</label>
+              <button id="stopBtn" onclick="stopExercise()" disabled>
+                중지
+              </button>
+            </div>
+          </div>
+
+          <!-- 분석 완료 메시지 및 다시 하기 버튼 -->
+          <div
+            id="analysisComplete"
+            style="display: none; text-align: center; margin-top: 20px"
+          >
+            <div
+              style="
+                background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+                color: white;
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 15px;
+              "
+            >
+              <h3 style="margin: 0 0 10px 0; font-size: 1.5em">
+                ✅ 분석이 완료되었어요!
+              </h3>
+            </div>
+            <button
+              id="resetBtn"
+              onclick="resetAnalysis()"
+              style="
+                padding: 12px 30px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s;
+              "
+            >
+              다시 하기
+            </button>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <div id="warmupAlert" class="warmup" style="display: none">
+            준비 중... <span id="warmupTime"></span>초 남음
+          </div>
+
+          <div class="info-card">
+            <h3>📊 현재 상태</h3>
+            <div class="stat-item">
+              <span class="stat-label">운동:</span>
+              <span class="stat-value" id="currentExercise">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">상태:</span>
+              <span class="stat-value" id="currentState">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">카운터:</span>
+              <span class="stat-value" id="counters">-</span>
+            </div>
+          </div>
+
+          <div class="info-card">
+            <h3>💬 피드백</h3>
+            <div id="feedback" class="feedback" style="display: none">
+              <span id="feedbackText">-</span>
+            </div>
+          </div>
+
+          <div class="info-card">
+            <h3>📈 점수</h3>
+            <div class="stat-item">
+              <span class="stat-label">총 횟수:</span>
+              <span class="stat-value" id="repCount">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">평균 점수:</span>
+              <span class="stat-value" id="totalScore">-</span>
+            </div>
+            <div
+              id="repScoresContainer"
+              class="rep-scores"
+              style="display: none"
+            >
+              <h4 style="margin-bottom: 10px">각 횟수별 점수:</h4>
+              <div id="repScores"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let statusInterval = null;
+      let uploadedVideoPath = null;
+
+      function onModeChange() {
+        const mode = document.getElementById("modeSelect").value;
+        const videoUploadGroup = document.getElementById("videoUploadGroup");
+        if (mode === "video") {
+          videoUploadGroup.style.display = "flex";
+        } else {
+          videoUploadGroup.style.display = "none";
+          uploadedVideoPath = null;
+        }
+      }
+
+      function startExercise() {
+        const exercise = document.getElementById("exerciseSelect").value;
+        const mode = document.getElementById("modeSelect").value;
+
+        if (mode === "video") {
+          // 비디오 업로드 모드
+          const fileInput = document.getElementById("videoFile");
+          if (!fileInput.files || fileInput.files.length === 0) {
+            alert("비디오 파일을 선택해주세요.");
+            return;
+          }
+
+          // 업로드 상태 표시
+          const uploadStatus = document.getElementById("uploadStatus");
+          uploadStatus.style.display = "block";
+          document.getElementById("startBtn").disabled = true;
+
+          const formData = new FormData();
+          formData.append("video", fileInput.files[0]);
+
+          // 먼저 비디오 업로드
+          fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              // 업로드 상태 숨기기
+              uploadStatus.style.display = "none";
+              document.getElementById("startBtn").disabled = false;
+
+              if (data.success) {
+                uploadedVideoPath = data.video_path;
+                // 업로드 후 분석 시작
+                startAnalysis(exercise, mode, data.video_path);
+              } else {
+                alert("비디오 업로드 실패: " + data.message);
+              }
+            })
+            .catch((error) => {
+              console.error("Error:", error);
+              // 업로드 상태 숨기기
+              uploadStatus.style.display = "none";
+              document.getElementById("startBtn").disabled = false;
+              alert("비디오 업로드 중 오류가 발생했습니다.");
+            });
+        } else {
+          // 실시간 모드
+          startAnalysis(exercise, mode, null);
+        }
+      }
+
+      function startAnalysis(exercise, mode, videoPath) {
+        // 분석 완료 메시지 숨기기
+        const analysisComplete = document.getElementById("analysisComplete");
+        analysisComplete.style.display = "none";
+
+        // 비디오 스트리밍 재시작 (캐시 방지를 위한 타임스탬프)
+        const videoStream = document.getElementById("videoStream");
+        videoStream.src = "/video_feed?t=" + new Date().getTime();
+
+        fetch("/api/start", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            exercise: exercise,
+            mode: mode,
+            camera_id: 0,
+            video_path: videoPath,
+          }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.success) {
+              document.getElementById("startBtn").disabled = true;
+              document.getElementById("stopBtn").disabled = false;
+              document.getElementById("exerciseSelect").disabled = true;
+              document.getElementById("modeSelect").disabled = true;
+
+              // 상태 업데이트 시작
+              startStatusUpdates();
+            } else {
+              alert("오류: " + data.message);
+            }
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+            alert("운동 시작 중 오류가 발생했습니다.");
+          });
+      }
+
+      function stopExercise() {
+        fetch("/api/stop", {
+          method: "POST",
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.success) {
+              document.getElementById("startBtn").disabled = false;
+              document.getElementById("stopBtn").disabled = true;
+              document.getElementById("exerciseSelect").disabled = false;
+
+              // 상태 업데이트 중지
+              stopStatusUpdates();
+
+              // 비디오 모드이고 rep가 있으면 분석 완료 메시지 표시
+              const mode = document.getElementById("modeSelect").value;
+              if (mode === "video" && data.rep_count > 0) {
+                showAnalysisComplete();
+              } else if (data.rep_count > 0) {
+                // 실시간 모드일 때는 알림만 표시
+                alert(
+                  `운동 완료!\n총 Rep: ${
+                    data.rep_count
+                  }\n평균 점수: ${data.total_score.toFixed(3)}`
+                );
+              }
+            }
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+          });
+      }
+
+      function showAnalysisComplete() {
+        const analysisComplete = document.getElementById("analysisComplete");
+        analysisComplete.style.display = "block";
+      }
+
+      function resetAnalysis() {
+        // 분석 완료 메시지 숨기기
+        const analysisComplete = document.getElementById("analysisComplete");
+        analysisComplete.style.display = "none";
+
+        // 업로드 상태 숨기기
+        const uploadStatus = document.getElementById("uploadStatus");
+        uploadStatus.style.display = "none";
+
+        // 파일 입력 초기화
+        const fileInput = document.getElementById("videoFile");
+        fileInput.value = "";
+        uploadedVideoPath = null;
+
+        // 버튼 상태 초기화
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("stopBtn").disabled = true;
+        document.getElementById("exerciseSelect").disabled = false;
+        document.getElementById("modeSelect").disabled = false;
+
+        // 상태 정보 초기화
+        document.getElementById("currentExercise").textContent = "-";
+        document.getElementById("currentState").textContent = "-";
+        document.getElementById("counters").textContent = "-";
+        document.getElementById("repCount").textContent = "0";
+        document.getElementById("totalScore").textContent = "-";
+        document.getElementById("feedback").style.display = "none";
+        document.getElementById("repScoresContainer").style.display = "none";
+        document.getElementById("warmupAlert").style.display = "none";
+
+        // 상태 업데이트 중지
+        stopStatusUpdates();
+
+        // 서버 측 상태 초기화 (에러 무시)
+        fetch("/api/stop", {
+          method: "POST",
+        }).catch((error) => {
+          // 에러는 무시 (이미 정리된 상태일 수 있음)
+          console.log("Server state already reset or error ignored:", error);
+        });
+      }
+
+      function startStatusUpdates() {
+        statusInterval = setInterval(updateStatus, 500); // 0.5초마다 업데이트
+      }
+
+      function stopStatusUpdates() {
+        if (statusInterval) {
+          clearInterval(statusInterval);
+          statusInterval = null;
+        }
+      }
+
+      function updateStatus() {
+        fetch("/api/status")
+          .then((response) => response.json())
+          .then((data) => {
+            // 비디오 모드에서 실행이 중지되었으면 자동으로 중지 처리
+            if (
+              !data.is_realtime &&
+              !data.is_running &&
+              document.getElementById("startBtn").disabled
+            ) {
+              stopExercise();
+              // 분석 완료 메시지 표시
+              showAnalysisComplete();
+              return;
+            }
+            // 운동 정보
+            if (data.exercise) {
+              document.getElementById("currentExercise").textContent =
+                data.exercise.replace("_", " ").toUpperCase();
+            }
+
+            // 상태
+            if (data.state) {
+              document.getElementById("currentState").textContent = data.state;
+            }
+
+            // 카운터
+            if (data.counters) {
+              const counterText = Object.entries(data.counters)
+                .map(([key, value]) => `${key}: ${value}`)
+                .join(", ");
+              document.getElementById("counters").textContent =
+                counterText || "-";
+            }
+
+            // Warmup 알림 (실시간 모드일 때만)
+            const warmupAlert = document.getElementById("warmupAlert");
+            if (
+              data.is_realtime &&
+              data.is_warmup &&
+              data.warmup_remaining !== undefined
+            ) {
+              warmupAlert.style.display = "block";
+              document.getElementById("warmupTime").textContent = Math.ceil(
+                data.warmup_remaining
+              );
+            } else {
+              warmupAlert.style.display = "none";
+            }
+
+            // 피드백
+            const feedbackDiv = document.getElementById("feedback");
+            const feedbackText = document.getElementById("feedbackText");
+            if (data.feedback_ko) {
+              feedbackDiv.style.display = "block";
+              feedbackText.textContent = data.feedback_ko;
+            } else {
+              feedbackDiv.style.display = "none";
+            }
+
+            // 점수
+            if (data.rep_count !== undefined) {
+              document.getElementById("repCount").textContent = data.rep_count;
+            }
+
+            if (data.total_score !== undefined && data.total_score !== null) {
+              document.getElementById("totalScore").textContent =
+                data.total_score.toFixed(3);
+            }
+
+            // Rep별 점수
+            const repScoresContainer =
+              document.getElementById("repScoresContainer");
+            const repScoresDiv = document.getElementById("repScores");
+            if (data.rep_scores && Object.keys(data.rep_scores).length > 0) {
+              repScoresContainer.style.display = "block";
+              repScoresDiv.innerHTML = "";
+              for (const [rep, score] of Object.entries(data.rep_scores)) {
+                const item = document.createElement("div");
+                item.className = "rep-score-item";
+                item.textContent = `Rep ${rep}: ${parseFloat(score).toFixed(
+                  3
+                )}`;
+                repScoresDiv.appendChild(item);
+              }
+            } else {
+              repScoresContainer.style.display = "none";
+            }
+          })
+          .catch((error) => {
+            console.error("Error updating status:", error);
+          });
+      }
+
+      // 페이지 로드 시 초기 상태 업데이트
+      updateStatus();
+    </script>
+  </body>
+</html>
