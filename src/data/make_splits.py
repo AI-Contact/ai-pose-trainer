@@ -41,7 +41,7 @@ def make_splits(pushup_dir: str, train_ratio: float = 0.9, seed: int = 42):
     print(f"Saved: {splits_dir / 'data_split.yaml'}")
 
 @click.command()
-@click.option("--exercise", default="push_up", type=click.Choice(["cross_lunge", "crunch", "plank", "push_up"]), help="운동 종류")
+@click.option("--exercise", default="push_up", type=click.Choice(["cross_lunge", "crunch", "plank", "push_up", "leg_raise"]), help="운돓 종류")
 @click.option("--base-dir", default=None, type=click.Path(path_type=Path), help="데이터 기본 디렉토리 (기본값: data/{exercise})")
 @click.option("--train-ratio", default=0.9, type=float, help="Train 데이터 비율")
 @click.option("--seed", default=42, type=int, help="랜덤 시드")

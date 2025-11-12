@@ -92,7 +92,7 @@ def batch_extract_all(exercise_dir, image_patterns=("*.jpg",), overwrite=False):
 
 
 @click.command()
-@click.option("--exercise", default="push_up", type=click.Choice(["push_up", "plank", "crunch", "cross_lunge"]), help="운동 종류")
+@click.option("--exercise", default="leg_raise", type=click.Choice(["push_up", "plank", "crunch", "cross_lunge", "leg_raise"]), help="운동 종류")
 def main(exercise: str):
 
     base_dir = Path(f"data/{exercise}")

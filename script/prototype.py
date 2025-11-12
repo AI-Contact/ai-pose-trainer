@@ -20,7 +20,7 @@ from src.pipeline.rule_blender import blend_probs
 
 
 @click.command()
-@click.option("--exercise", default="push_up", type=click.Choice(["push_up", "plank", "crunch", "cross_lunge"]), help="운동 종류")
+@click.option("--exercise", default="push_up", type=click.Choice(["push_up", "plank", "crunch", "cross_lunge", "leg_raise"]), help="운동 종류")
 @click.option("--realtime", is_flag=True, default=False, help="실시간 웹캠 모드 활성화")
 @click.option("--video", default=None, type=click.Path(path_type=Path), help="입력 비디오 파일 (realtime이 False일 때 필수)")
 @click.option("--camera-id", default=0, type=int, help="웹캠 ID (realtime일 때 사용, 기본값: 0)")

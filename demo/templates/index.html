@@ -176,6 +176,14 @@
         margin-top: 10px;
       }
 
+      #feedbackContainer .feedback:first-child {
+        margin-top: 0;
+      }
+
+      #feedbackContainer .feedback:not(:last-child) {
+        margin-bottom: 10px;
+      }
+
       .warmup {
         background: #ffa726;
         color: white;
@@ -286,12 +294,52 @@
 
             <div class="control-group">
               <label for="exerciseSelect">운동 선택</label>
-              <select id="exerciseSelect">
+              <select id="exerciseSelect" onchange="onExerciseChange()">
                 <option value="push_up">푸시업 (Push Up)</option>
                 <option value="plank">플랭크 (Plank)</option>
                 <option value="crunch">크런치 (Crunch)</option>
                 <option value="cross_lunge">크로스 런지 (Cross Lunge)</option>
               </select>
+            </div>
+
+            <div
+              class="control-group"
+              id="targetRepsGroup"
+              style="display: none"
+            >
+              <label for="targetReps">목표 횟수</label>
+              <input
+                type="number"
+                id="targetReps"
+                min="1"
+                value="10"
+                style="
+                  padding: 12px 20px;
+                  border: 2px solid #667eea;
+                  border-radius: 8px;
+                  font-size: 16px;
+                "
+              />
+            </div>
+
+            <div
+              class="control-group"
+              id="targetTimeGroup"
+              style="display: none"
+            >
+              <label for="targetTime">목표 시간 (초)</label>
+              <input
+                type="number"
+                id="targetTime"
+                min="1"
+                value="60"
+                style="
+                  padding: 12px 20px;
+                  border: 2px solid #667eea;
+                  border-radius: 8px;
+                  font-size: 16px;
+                "
+              />
             </div>
 
             <div class="control-group">
@@ -368,9 +416,7 @@
 
           <div class="info-card">
             <h3>💬 피드백</h3>
-            <div id="feedback" class="feedback" style="display: none">
-              <span id="feedbackText">-</span>
-            </div>
+            <div id="feedbackContainer" style="display: none"></div>
           </div>
 
           <div class="info-card">
@@ -399,6 +445,27 @@
     <script>
       let statusInterval = null;
       let uploadedVideoPath = null;
+
+      function onExerciseChange() {
+        const exercise = document.getElementById("exerciseSelect").value;
+        const targetRepsGroup = document.getElementById("targetRepsGroup");
+        const targetTimeGroup = document.getElementById("targetTimeGroup");
+
+        if (exercise === "plank") {
+          // 플랭크: 시간 입력
+          targetRepsGroup.style.display = "none";
+          targetTimeGroup.style.display = "flex";
+        } else {
+          // 푸시업, 크런치, 크로스런지: 횟수 입력
+          targetRepsGroup.style.display = "flex";
+          targetTimeGroup.style.display = "none";
+        }
+      }
+
+      // 페이지 로드 시 초기 설정
+      window.addEventListener("DOMContentLoaded", () => {
+        onExerciseChange();
+      });
 
       function onModeChange() {
         const mode = document.getElementById("modeSelect").value;
@@ -472,6 +539,23 @@
         const videoStream = document.getElementById("videoStream");
         videoStream.src = "/video_feed?t=" + new Date().getTime();
 
+        // 목표 값 가져오기 (실시간 모드일 때만)
+        let targetReps = null;
+        let targetTime = null;
+        if (mode === "realtime") {
+          if (exercise === "plank") {
+            const targetTimeInput = document.getElementById("targetTime");
+            targetTime = targetTimeInput
+              ? parseInt(targetTimeInput.value)
+              : null;
+          } else {
+            const targetRepsInput = document.getElementById("targetReps");
+            targetReps = targetRepsInput
+              ? parseInt(targetRepsInput.value)
+              : null;
+          }
+        }
+
         fetch("/api/start", {
           method: "POST",
           headers: {
@@ -482,6 +566,8 @@
             mode: mode,
             camera_id: 0,
             video_path: videoPath,
+            target_reps: targetReps,
+            target_time: targetTime,
           }),
         })
           .then((response) => response.json())
@@ -525,9 +611,9 @@
               } else if (data.rep_count > 0) {
                 // 실시간 모드일 때는 알림만 표시
                 alert(
-                  `운동 완료!\n총 Rep: ${
-                    data.rep_count
-                  }\n평균 점수: ${data.total_score.toFixed(3)}`
+                  `운동 완료!\n총 횟수: ${data.rep_count}\n평균 점수: ${(
+                    data.total_score * 100
+                  ).toFixed(1)}점`
                 );
               }
             }
@@ -562,13 +648,16 @@
         document.getElementById("exerciseSelect").disabled = false;
         document.getElementById("modeSelect").disabled = false;
 
+        // 목표 입력 필드 초기화
+        onExerciseChange();
+
         // 상태 정보 초기화
         document.getElementById("currentExercise").textContent = "-";
         document.getElementById("currentState").textContent = "-";
         document.getElementById("counters").textContent = "-";
         document.getElementById("repCount").textContent = "0";
         document.getElementById("totalScore").textContent = "-";
-        document.getElementById("feedback").style.display = "none";
+        document.getElementById("feedbackContainer").style.display = "none";
         document.getElementById("repScoresContainer").style.display = "none";
         document.getElementById("warmupAlert").style.display = "none";
 
@@ -599,15 +688,16 @@
         fetch("/api/status")
           .then((response) => response.json())
           .then((data) => {
-            // 비디오 모드에서 실행이 중지되었으면 자동으로 중지 처리
+            // 실행이 중지되었으면 자동으로 중지 처리 (비디오 모드 또는 목표 달성)
             if (
-              !data.is_realtime &&
               !data.is_running &&
               document.getElementById("startBtn").disabled
             ) {
               stopExercise();
-              // 분석 완료 메시지 표시
-              showAnalysisComplete();
+              // 비디오 모드이거나 목표 달성 시 분석 완료 메시지 표시
+              if (!data.is_realtime) {
+                showAnalysisComplete();
+              }
               return;
             }
             // 운동 정보
@@ -621,10 +711,19 @@
               document.getElementById("currentState").textContent = data.state;
             }
 
-            // 카운터
-            if (data.counters) {
+            // 카운터 (플랭크는 경과 시간 표시)
+            if (
+              data.exercise === "plank" &&
+              data.elapsed_seconds !== undefined
+            ) {
+              // 플랭크: 경과 시간 표시 (초)
+              document.getElementById(
+                "counters"
+              ).textContent = `${data.elapsed_seconds}초`;
+            } else if (data.counters) {
+              // 다른 운동: 횟수 표시
               const counterText = Object.entries(data.counters)
-                .map(([key, value]) => `${key}: ${value}`)
+                .map(([key, value]) => `${value} 회`)
                 .join(", ");
               document.getElementById("counters").textContent =
                 counterText || "-";
@@ -645,14 +744,30 @@
               warmupAlert.style.display = "none";
             }
 
-            // 피드백
-            const feedbackDiv = document.getElementById("feedback");
-            const feedbackText = document.getElementById("feedbackText");
+            // 피드백 (| 기준으로 파싱하여 각각 다른 박스로 표시)
+            const feedbackContainer =
+              document.getElementById("feedbackContainer");
             if (data.feedback_ko) {
-              feedbackDiv.style.display = "block";
-              feedbackText.textContent = data.feedback_ko;
+              // | 기준으로 피드백 분리
+              const feedbacks = data.feedback_ko
+                .split(" | ")
+                .map((f) => f.trim())
+                .filter((f) => f);
+
+              // 기존 피드백 박스 제거
+              feedbackContainer.innerHTML = "";
+
+              // 각 피드백을 별도의 박스로 표시
+              feedbacks.forEach((feedback) => {
+                const feedbackBox = document.createElement("div");
+                feedbackBox.className = "feedback";
+                feedbackBox.textContent = feedback;
+                feedbackContainer.appendChild(feedbackBox);
+              });
+
+              feedbackContainer.style.display = "block";
             } else {
-              feedbackDiv.style.display = "none";
+              feedbackContainer.style.display = "none";
             }
 
             // 점수
@@ -661,8 +776,9 @@
             }
 
             if (data.total_score !== undefined && data.total_score !== null) {
-              document.getElementById("totalScore").textContent =
-                data.total_score.toFixed(3);
+              document.getElementById("totalScore").textContent = `${(
+                data.total_score * 100
+              ).toFixed(1)}점`;
             }
 
             // Rep별 점수
@@ -675,9 +791,9 @@
               for (const [rep, score] of Object.entries(data.rep_scores)) {
                 const item = document.createElement("div");
                 item.className = "rep-score-item";
-                item.textContent = `Rep ${rep}: ${parseFloat(score).toFixed(
-                  3
-                )}`;
+                item.textContent = `${rep}회 ${(
+                  parseFloat(score) * 100
+                ).toFixed(1)}점`;
                 repScoresDiv.appendChild(item);
               }
             } else {

@@ -29,7 +29,7 @@ def find_threshold_by_roc(y_true, y_probs):
 
 
 @click.command()
-@click.option("--exercise", default="push_up", type=click.Choice(["cross_lunge", "crunch", "plank", "push_up"]), help="운동 종류")
+@click.option("--exercise", default="push_up", type=click.Choice(["cross_lunge", "crunch", "plank", "push_up", "leg_raise"]), help="운돓 종류")
 @click.option("--pred-csv", required=True, type=click.Path(path_type=Path), help="모델 예측 결과 CSV")
 @click.option("--method", default="f1", type=click.Choice(["f1", "roc", "both"]), help="threshold 찾는 방법")
 def main(exercise: str, pred_csv: Path, method: str):

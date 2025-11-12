@@ -93,6 +93,6 @@ def reorganize(base_dir: str, subjects: list[str] | None = None) -> None:
 
 
 if __name__ == "__main__":
-    reorganize(str(Path("data/push_up")), subjects=None)
+    reorganize(str(Path("data/leg_raise")), subjects=None)
 
 

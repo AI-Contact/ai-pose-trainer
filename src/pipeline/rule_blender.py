@@ -8,6 +8,7 @@ from src.exercises import push_up_rules
 from src.exercises import plank_rules
 from src.exercises import crunch_rules
 from src.exercises import cross_lunge_rules
+from src.exercises import leg_raise_rules
 
 
 ExerciseRuleModule = object
@@ -18,6 +19,7 @@ EXERCISE_TO_RULES: Dict[str, object] = {
     "plank": plank_rules,
     "crunch": crunch_rules,
     "cross_lunge": cross_lunge_rules,
+    "leg_raise": leg_raise_rules,
 }
 
 

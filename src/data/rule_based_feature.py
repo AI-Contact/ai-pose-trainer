@@ -250,6 +250,85 @@ def extract_cross_lunge_features(pose_seq):
     return np.array(features)
 
 
+def extract_leg_raise_features(pose_seq):
+    """
+    pose_seq: (frames, 33, 3) mediapipe 좌표 (정면/측면 혼재 가능, 2D 사용)
+    반환: rule-based feature 벡터 (frames, N_features)
+
+    Label 조건과 매핑된 프록시:
+    - 허리 지면 고정: spine_angle(어깨-엉덩이-무릎 각도)와 그 변화량(안정성)
+    - 허벅지와 종아리 각도 고정: knee_angle(엉덩이-무릎-발목)과 그 변화량(안정성)
+    - 이완 시 다리 긴장유지: 발목 높이 변화 속도(absolute velocity)가 낮으면 좋음
+    - 고개 숙임 여부: head_tuck_angle(귀-어깨-엉덩이 각도; 작을수록 숙임)
+    """
+    from src.utils.landmarks import (
+        L_SH, R_SH, L_HIP, R_HIP, L_KNEE, R_KNEE, L_ANKLE, R_ANKLE, L_EAR, R_EAR
+    )
+
+    features = []
+
+    prev_knee_angle = None
+    prev_spine_angle = None
+    prev_mean_ankle_y = None
+
+    for frame in pose_seq:
+        # Knee angle (허벅지-종아리 각도): 엉덩이-무릎-발목
+        left_knee_angle = calculate_angle(frame[L_HIP], frame[L_KNEE], frame[L_ANKLE])
+        right_knee_angle = calculate_angle(frame[R_HIP], frame[R_KNEE], frame[R_ANKLE])
+        mean_knee_angle = (left_knee_angle + right_knee_angle) / 2
+
+        if prev_knee_angle is not None:
+            knee_angle_delta = abs(mean_knee_angle - prev_knee_angle)
+        else:
+            knee_angle_delta = 0.0
+        prev_knee_angle = mean_knee_angle
+
+        # Hip flexion proxy (엉덩이 굴곡): 어깨-엉덩이-무릎 각도
+        left_hip_flexion = calculate_angle(frame[L_SH], frame[L_HIP], frame[L_KNEE])
+        right_hip_flexion = calculate_angle(frame[R_SH], frame[R_HIP], frame[R_KNEE])
+        mean_hip_flexion = (left_hip_flexion + right_hip_flexion) / 2
+
+        # Spine angle and stability proxy (허리 지면 고정 프록시)
+        # 여기서는 hip_flexion과 동일 정의를 쓰되, 이름을 spine_angle로 별도 관리
+        left_spine_angle = left_hip_flexion
+        right_spine_angle = right_hip_flexion
+        mean_spine_angle = (left_spine_angle + right_spine_angle) / 2
+        if prev_spine_angle is not None:
+            spine_angle_delta = abs(mean_spine_angle - prev_spine_angle)
+        else:
+            spine_angle_delta = 0.0
+        prev_spine_angle = mean_spine_angle
+
+        # Head tuck (고개 숙임): 귀-어깨-엉덩이 각도 (작을수록 숙임)
+        left_head_tuck = calculate_angle(frame[L_EAR], frame[L_SH], frame[L_HIP])
+        right_head_tuck = calculate_angle(frame[R_EAR], frame[R_SH], frame[R_HIP])
+        head_tuck_angle = (left_head_tuck + right_head_tuck) / 2
+
+        # Ankle height and velocity (이완시 긴장 유지 프록시)
+        mean_ankle_y = (frame[L_ANKLE][1] + frame[R_ANKLE][1]) / 2
+        mean_hip_y = (frame[L_HIP][1] + frame[R_HIP][1]) / 2
+        # y가 작을수록 높음 → 힙 대비 발목 높이(양수일수록 발목이 더 위)
+        ankle_height = mean_hip_y - mean_ankle_y
+        if prev_mean_ankle_y is not None:
+            ankle_velocity = abs(mean_ankle_y - prev_mean_ankle_y)
+        else:
+            ankle_velocity = 0.0
+        prev_mean_ankle_y = mean_ankle_y
+
+        features.append([
+            mean_knee_angle,     # 무릎 각도 (고정 여부)
+            knee_angle_delta,    # 무릎 각도 변화 (작을수록 고정)
+            mean_hip_flexion,    # 엉덩이 굴곡(상체-엉덩이-무릎)
+            mean_spine_angle,    # 허리 각도 프록시
+            spine_angle_delta,   # 허리 각도 변화 (작을수록 지면 고정)
+            head_tuck_angle,     # 고개 숙임 (작을수록 숙임)
+            ankle_height,        # 발목 높이 (힙 대비; 클수록 다리 높음)
+            ankle_velocity,      # 발목 높이 변화 속도 (작을수록 이완 시 긴장 유지)
+        ])
+
+    return np.array(features)
+
+
 if __name__ == "__main__":
     def batch_extract_features(root_dir, save=False, out_ext=".npy"):
         root = Path(root_dir)

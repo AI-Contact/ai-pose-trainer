@@ -32,7 +32,6 @@ def spine_neutral_score(landmarks: np.ndarray) -> float:
 
     # 엉덩이가 선보다 아래에 있는 경우: 150~180도 구간에 대해 선형 증가
     if cross_product > 0:  # 엉덩이가 선보다 아래
-        print(f"spine_angle: {spine_angle}")
         if spine_angle < 160.0:
             return 0.0
         if spine_angle >= 180.0:

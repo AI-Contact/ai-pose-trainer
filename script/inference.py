@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from src.data.dataloader import read_yaml_splits
-from src.data.rule_based_feature import extract_pushup_features, extract_plank_features, extract_crunch_features, extract_cross_lunge_features
+from src.data.rule_based_feature import extract_pushup_features, extract_plank_features, extract_crunch_features, extract_cross_lunge_features, extract_leg_raise_features
 from src.model.models import ExerciseModel
 
 
@@ -15,10 +15,10 @@ def get_feature_fn(exercise: str):
     """운동 종류에 따라 feature extraction 함수 반환"""
     feature_map = {
         "push_up": extract_pushup_features,
-        "pushup": extract_pushup_features,
         "plank": extract_plank_features,
         "crunch": extract_crunch_features,
         "cross_lunge": extract_cross_lunge_features,
+        "leg_raise": extract_leg_raise_features,
     }
     if exercise.lower() not in feature_map:
         raise ValueError(f"Unknown exercise type: {exercise}. Available: {list(feature_map.keys())}")
@@ -45,7 +45,7 @@ def infer_sequence(seq_dir: Path, model: ExerciseModel, feature_fn):
 
 
 @click.command()
-@click.option("--exercise", default="push_up", type=click.Choice(["push_up", "plank", "crunch", "cross_lunge"]), help="운동 종류")
+@click.option("--exercise", default="push_up", type=click.Choice(["push_up", "plank", "crunch", "cross_lunge", "leg_raise"]), help="운돓 종류")
 @click.option("--base-dir", default=None, type=click.Path(path_type=Path), help="데이터 기본 디렉토리 (기본값: data/{exercise})")
 @click.option("--yaml", "yaml_path", default=None, type=click.Path(path_type=Path), help="분할 YAML 파일 (기본값: data/{exercise}/data_split.yaml)")
 @click.option("--use-split", default="valid", type=click.Choice(["train", "valid"]))

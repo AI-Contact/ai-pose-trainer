@@ -13,7 +13,7 @@ from src.exercises.registry import create_exercise
 from src.pipeline.pose_extractor import PoseExtractor
 from src.pipeline.sequence_buffer import SequenceBuffer
 from src.pipeline.inference_service import InferenceService
-from src.pipeline.renderer import FrameRenderer
+from src.pipeline.renderer_demo import FrameRenderer
 from src.pipeline.score_calculator import ScoreCalculator
 from src.utils.thresholds import load_thresholds, match_thresholds
 from src.utils.labels import load_condition_names
@@ -42,6 +42,9 @@ pipeline_components = {
     'current_feedback_en': None,
     'current_feedback_ko': None,
     'frame_count': 0,
+    'target_reps': None,  # 목표 횟수 (푸시업, 크런치, 크로스런지)
+    'target_time': None,  # 목표 시간 초 (플랭크)
+    'exercise_start_time': None,  # 운동 시작 시간 (플랭크용)
     'lock': threading.Lock(),
 }
 
@@ -49,7 +52,7 @@ pipeline_components = {
 UPLOAD_FOLDER = Path('demo/uploads')
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
-def init_pipeline(exercise_name: str, is_realtime: bool = True, camera_id: int = 0, video_path: Path = None):
+def init_pipeline(exercise_name: str, is_realtime: bool = True, camera_id: int = 0, video_path: Path = None, target_reps: int = None, target_time: int = None):
     """파이프라인 컴포넌트 초기화"""
     with pipeline_components['lock']:
         # 기존 리소스 정리
@@ -114,11 +117,11 @@ def init_pipeline(exercise_name: str, is_realtime: bool = True, camera_id: int =
         pipeline_components['current_feedback_en'] = None
         pipeline_components['current_feedback_ko'] = None
         pipeline_components['frame_count'] = 0
-        # 실시간 모드일 때만 warmup 적용
-        if is_realtime:
-            pipeline_components['start_time'] = time.time()
-        else:
-            pipeline_components['start_time'] = None
+        pipeline_components['target_reps'] = target_reps
+        pipeline_components['target_time'] = target_time
+        pipeline_components['exercise_start_time'] = None
+        # start_time은 첫 프레임을 받았을 때 설정 (웹캠 스트리밍 시작 후)
+        pipeline_components['start_time'] = None
 
 def generate_frames():
     """비디오 프레임 생성기 (MJPEG 스트리밍)"""
@@ -159,11 +162,26 @@ def generate_frames():
         if not ret:
             break
         
+        # 실시간 모드에서 첫 프레임을 받았을 때 start_time 설정 (웹캠 스트리밍 시작 후)
+        if is_realtime and pipeline_components.get('start_time') is None:
+            with pipeline_components['lock']:
+                if pipeline_components.get('start_time') is None:  # 다시 확인 (race condition 방지)
+                    pipeline_components['start_time'] = time.time()
+            start_time = pipeline_components['start_time']
+        
         # Warmup 기간 확인 (실시간 모드일 때만)
+        warmup_remaining = None
         if is_realtime and start_time is not None:
             current_time = time.time()
             elapsed_time = current_time - start_time
             is_warmup = elapsed_time < warmup_duration
+            warmup_remaining = max(0, warmup_duration - elapsed_time)
+            
+            # warmup이 끝나면 운동 시작 시간 기록 (플랭크용)
+            if not is_warmup and pipeline_components.get('exercise_start_time') is None:
+                with pipeline_components['lock']:
+                    if pipeline_components.get('target_time') is not None:
+                        pipeline_components['exercise_start_time'] = current_time
         else:
             is_warmup = False
         
@@ -227,6 +245,31 @@ def generate_frames():
                     else:
                         pipeline_components['current_feedback_en'] = "Good job"
                         pipeline_components['current_feedback_ko'] = "잘하고 있어요!"
+                    
+                    # 목표 달성 체크 (실시간 모드일 때만, rep 완료 후 체크)
+                    if is_realtime:
+                        target_reps = pipeline_components.get('target_reps')
+                        exercise_name = exercise.name
+                        
+                        # 푸시업, 크런치, 크로스런지: 횟수 기반 목표 체크
+                        # completed_rep이 목표 횟수와 같으면 종료 (해당 rep가 완전히 평가된 후)
+                        if target_reps is not None and completed_rep == target_reps:
+                            # 목표 횟수 달성: 자동 종료
+                            pipeline_components['is_running'] = False
+                
+                # 플랭크: 시간 기반 목표 체크 (매 프레임마다 체크)
+                if is_realtime:
+                    target_time = pipeline_components.get('target_time')
+                    exercise_name = exercise.name
+                    
+                    if exercise_name == 'plank' and target_time is not None:
+                        exercise_start_time = pipeline_components.get('exercise_start_time')
+                        if exercise_start_time is not None:
+                            elapsed_time = time.time() - exercise_start_time
+                            # 목표 시간에 정확히 도달했을 때 종료 (반올림하여 비교)
+                            if round(elapsed_time) >= target_time:
+                                # 목표 시간 달성: 자동 종료
+                                pipeline_components['is_running'] = False
         
         # 오버레이 그리기
         with pipeline_components['lock']:
@@ -246,6 +289,7 @@ def generate_frames():
             pose_landmarks=pose_landmarks,
             pose_connections=mp_pose.POSE_CONNECTIONS,
             feedback=(current_feedback_en, current_feedback_ko),
+            warmup_remaining=warmup_remaining,
         )
         
         # JPEG로 인코딩
@@ -351,8 +395,11 @@ def start_exercise():
     video_path = data.get('video_path', None)
     
     try:
+        target_reps = data.get('target_reps', None)
+        target_time = data.get('target_time', None)
+        
         if mode == 'realtime':
-            init_pipeline(exercise_name, is_realtime=True, camera_id=camera_id)
+            init_pipeline(exercise_name, is_realtime=True, camera_id=camera_id, target_reps=target_reps, target_time=target_time)
         else:
             if video_path is None:
                 return jsonify({
@@ -366,7 +413,7 @@ def start_exercise():
                     'success': False,
                     'message': f'비디오 파일을 찾을 수 없습니다: {video_path_abs}'
                 }), 400
-            init_pipeline(exercise_name, is_realtime=False, video_path=video_path_abs)
+            init_pipeline(exercise_name, is_realtime=False, video_path=video_path_abs, target_reps=None, target_time=None)
         
         pipeline_components['is_running'] = True
         return jsonify({
@@ -444,6 +491,29 @@ def get_status():
                 elapsed = time.time() - pipeline_components['start_time']
                 status['warmup_remaining'] = max(0, pipeline_components['warmup_duration'] - elapsed)
                 status['is_warmup'] = elapsed < pipeline_components['warmup_duration']
+            
+            # 플랭크의 경우 경과 시간 계산 (warmup 제외)
+            if pipeline_components['exercise'].name == 'plank':
+                exercise_start_time = pipeline_components.get('exercise_start_time')
+                if exercise_start_time is not None:
+                    # 운동이 실행 중일 때만 경과 시간 계산
+                    if pipeline_components['is_running']:
+                        # warmup이 끝난 후의 경과 시간 (반올림하여 표시)
+                        elapsed_seconds = round(time.time() - exercise_start_time)
+                        status['elapsed_seconds'] = elapsed_seconds
+                    else:
+                        # 운동이 종료된 경우, 종료 시점의 경과 시간 계산
+                        # (목표 시간이 있으면 목표 시간 사용, 없으면 현재까지의 시간)
+                        target_time = pipeline_components.get('target_time')
+                        if target_time is not None:
+                            # 목표 시간이 설정된 경우, 목표 시간을 경과 시간으로 사용
+                            status['elapsed_seconds'] = target_time
+                        else:
+                            # 목표 시간이 없는 경우, 종료 시점까지의 경과 시간
+                            elapsed_seconds = int(time.time() - exercise_start_time)
+                            status['elapsed_seconds'] = elapsed_seconds
+                else:
+                    status['elapsed_seconds'] = 0
         
         if pipeline_components['score_calculator']:
             rep_count = pipeline_components['score_calculator'].get_rep_count()

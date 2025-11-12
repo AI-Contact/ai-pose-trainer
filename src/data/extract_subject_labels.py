@@ -6,7 +6,7 @@ import click
 
 
 @click.command()
-@click.option("--exercise", default="push_up", type=click.Choice(["cross_lunge", "crunch", "plank", "push_up"]), help="운동 종류")
+@click.option("--exercise", default="push_up", type=click.Choice(["cross_lunge", "crunch", "plank", "push_up", ]), help="운동 종류")
 @click.option("--base-dir", default=None, type=click.Path(path_type=Path), help="데이터 기본 디렉토리 (기본값: data/{exercise})")
 @click.option("--out-csv", default=None, type=click.Path(path_type=Path), help="출력 CSV 파일 (기본값: data/{exercise}/subject_labels.csv)")
 def main(exercise: str, base_dir: Path, out_csv: Path):
